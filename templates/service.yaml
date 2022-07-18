@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{  include "pgbouncer.name" . }}-service
+spec:
+  selector:
+    app: {{  include "pgbouncer.name" . }}
+  ports:
+    - protocol: TCP
+      port: 6432
+      targetPort: 6432
+  type: LoadBalancer

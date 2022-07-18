@@ -1,0 +1,184 @@
+NAME: pgbouncer
+LAST DEPLOYED: Mon Jul 18 18:07:29 2022
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+USER-SUPPLIED VALUES:
+{}
+
+COMPUTED VALUES:
+antiAffinity: soft
+budget:
+  minAvailable: 0
+clientIdleTimout: 0
+clientLoginTimeout: 60
+connectionLimits:
+  defaultPoolSize: 200
+  maxClientConn: 200
+  minPoolSize: 15
+  reservePoolSize: 25
+  reservePoolTimeout: 5
+customSettings: {}
+global:
+  namespacedDatabases: false
+helm2selector: false
+image:
+  pullPolicy: Always
+  repository: bitnami/pgbouncer
+  tag: 1.17.0
+imagePullSecrets: []
+internalPort: 6432
+labels: {}
+logConnections: 0
+logDisconnections: 0
+logPoolerErrors: 1
+logStats: 0
+nodeAffinity: {}
+nodeSelector: {}
+poolMode: transaction
+postgres_sql:
+  POSTGRESQL_DATABASE: postgres
+  POSTGRESQL_HOST: database-1.c6isfyzdhskr.us-east-1.rds.amazonaws.com
+  POSTGRESQL_USERNAME: postgres
+queryTimeout: 0
+queryWaitTimeout: 120
+replicaCount: 1
+serverConnectTimeout: 15
+serverIdleTimeout: 600
+serverLifetime: 3600
+serverLoginRetry: 15
+service:
+  annotations: {}
+  enabled: true
+  name: ""
+  type: ClusterIP
+servicePort: 6432
+settings:
+  auth_query: auth_query = SELECT * FROM pgbouncer.get_auth($1)
+  auth_type: plain
+spec:
+  annotations: {}
+  labels: {}
+statsPeriod: 60
+tolerations: []
+users:
+  postgres: postgres
+  postgres1: postgres1
+verbose: 0
+
+HOOKS:
+MANIFEST:
+---
+# Source: pgbouncer/templates/secret-pgbouncer-users.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: 
+    pgbouncer-secrets
+  labels:
+    app: pgbouncer
+    
+type: Opaque
+data:
+  POSTGRESQL_PASSWORD: cG9zdGdyZXM=
+---
+# Source: pgbouncer/templates/configmap-pgbouncer-ini.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+data:
+
+  POSTGRESQL_HOST: database-1.c6isfyzdhskr.us-east-1.rds.amazonaws.com
+  #POSTGRESQL_USERNAME: postgres
+  POSTGRESQL_USERNAME: map[postgres:postgres postgres1:postgres1]
+  
+  POSTGRESQL_DATABASE: postgres
+  POOL_MODE: transaction
+---
+# Source: pgbouncer/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer-service
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - protocol: TCP
+      port: 6432
+      targetPort: 6432
+  type: LoadBalancer
+---
+# Source: pgbouncer/templates/deployment-pgbouncer.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: pgbouncer
+    
+  name: pgbouncer
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      containers:
+      - env:
+        - name: POSTGRESQL_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: pgbouncer-config
+              key: POSTGRESQL_HOST
+        - name: POSTGRESQL_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: pgbouncer-config
+              key: POSTGRESQL_USERNAME
+        - name: POSTGRESQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: pgbouncer-config
+              key: POSTGRESQL_DATABASE
+          
+        #- name: PGBOUNCER_AUTH_TYPE
+        #  value: md5
+        - name: POSTGRESQL_PASSWORD
+          value: postgres
+          #valueFrom:
+          #  secretKeyRef:
+          #    key: POSTGRESQL_PASSWORD
+          #    name: pgbouncer-secrets
+        - name: POOL_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: pgbouncer-config
+              key: POOL_MODE
+        - name: SERVER_RESET_QUERY
+          value: DISCARD ALL
+        image: bitnami/pgbouncer:1.17.0
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - killall -INT pgbouncer && sleep 120
+        name: pgbouncer
+        ports:
+        - containerPort: 6432
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+
+NOTES:
+
